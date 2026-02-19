@@ -59,6 +59,10 @@ const PATHS = {
   lists: "lists/"
 };
 
+// cache the last Type-1 response for each picture so confidence can access it
+const lastType1ByPic = {};
+
+
 // ----------------------------
 // Utilities
 // ----------------------------
@@ -273,6 +277,8 @@ function buildMetaJudgmentTrial(pic, blockName){
     timeline: [
       imagePassive(pic, TIMING.pic_ms, {block: blockName, phase: "stimulus"}),
       fixationTrial(TIMING.fix_ms),
+
+      // Type-1 (higher/lower)
       {
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `<div class="center" style="font-size:28px; line-height:1.35;">
@@ -286,8 +292,17 @@ function buildMetaJudgmentTrial(pic, blockName){
           data.type1_key = data.response;
           data.type1_rt_ms = data.rt;
           data.start_time_ms = Date.now();
+
+          // store for the upcoming confidence trial
+          lastType1ByPic[pic_id] = {
+            type1_key: data.type1_key,
+            type1_rt_ms: data.type1_rt_ms,
+            type1_start_time_ms: data.start_time_ms
+          };
         }
       },
+
+      // Confidence
       {
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `<div class="center" style="font-size:28px; line-height:1.35;">
@@ -299,20 +314,23 @@ function buildMetaJudgmentTrial(pic, blockName){
         on_finish: (data) => {
           data.conf_key = data.response;
           data.conf_rt_ms = data.rt;
-
-          const lastType1 = jsPsych.data.get().filter({event: "meta_type1", pic_id: pic_id}).last(1).values()[0];
-          if (lastType1) {
-            data.type1_key = lastType1.type1_key;
-            data.type1_rt_ms = lastType1.type1_rt_ms;
-            data.type1_start_time_ms = lastType1.start_time_ms;
-          }
           data.start_time_ms = Date.now();
+
+          // pull the stored type-1 response into this row (for export convenience)
+          const prev = lastType1ByPic[pic_id];
+          if (prev) {
+            data.type1_key = prev.type1_key;
+            data.type1_rt_ms = prev.type1_rt_ms;
+            data.type1_start_time_ms = prev.type1_start_time_ms;
+          }
         }
       },
+
       blankITI(TIMING.iti_ms)
     ]
   };
 }
+
 
 // ----------------------------
 // Matlab-style exports
